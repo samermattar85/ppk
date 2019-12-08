@@ -4,13 +4,15 @@ import binascii
 import signal
 import struct
 import keyboard
+import getopt
+import sys
 
 if __name__ == "__main__":
 
     binfile = 'out.bin'
     csvfile = 'out.csv'
     try:
-        opts, args = getopt.getopt(argv,"hi:o:",["ifile=","ofile="])
+        opts, args = getopt.getopt(sys.argv[1:],"hi:o:",["ifile=","ofile="])
     except getopt.GetoptError:
         print 'test.py -i <inputfile> -o <outputfile>'
         sys.exit(2)
@@ -119,6 +121,3 @@ if __name__ == "__main__":
 
     csvfile.close()
     binfile.close()
-except:
-    raise
-    csvfilename = '/home/daniel/PycharmProjects/plot_ppk_csv/ppk_out_comm_info.csv'
