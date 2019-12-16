@@ -45,7 +45,7 @@ void main(int argc, char **argv)
         // printf("%d, %x\n",pos, byte);
         if(esc_flag)
         {
-            payload[pos++] = (byte ^ 0x20);
+            payload.append(byte ^ 0x20);
             esc_flag = false;
         }
         else
@@ -91,7 +91,7 @@ void main(int argc, char **argv)
                 break;
 
                 default:
-                payload[pos++] = byte;
+                    payload[pos++] = byte;
                 break;
             }
         }

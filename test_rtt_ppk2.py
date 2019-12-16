@@ -1,29 +1,116 @@
 from pynrfjprog import API
-import time
-import binascii
-import signal
+# import time
+# import binascii
+# import signal
 import struct
-import keyboard
-import getopt
-import sys
+# import keyboard
+# import getopt
+# import sys
 
-if __name__ == "__main__":
+import argparse
+import os
+import numpy as np
 
-    binfile = 'out.bin'
-    csvfile = 'out.csv'
-    try:
-        opts, args = getopt.getopt(sys.argv[1:],"hi:o:",["ifile=","ofile="])
-    except getopt.GetoptError:
-        print 'test.py -i <inputfile> -o <outputfile>'
-        sys.exit(2)
-    for opt, arg in opts:
-        if opt == '-h':
-            print 'test.py -i <binfile> -o <csvfile>'
-            sys.exit()
-        elif opt in ("-i", "--ifile"):
-            binfile = arg
-        elif opt in ("-o", "--ofile"):
-            csvfile = arg
+import collections
+
+
+
+d = collections.deque()
+
+import threading
+import time
+
+def parser(stop, freq_factor, csvfile):
+    esc_flag = False
+    payload = bytearray()
+
+    samples = list()
+
+    with open(csvfile, 'w', newline='') as file:
+        first_sample = True
+        PAYLOAD_END = 3
+        ESC_FLAG = 31
+        while True:
+            if d.count() == 0:
+                if stop():
+                    break
+                else:
+                    time.sleep(0.01)
+                    continue
+
+            byte = d.popleft()
+            if esc_flag:
+                payload.append(byte ^ 0x20)
+                esc_flag = False
+            else:
+                if byte == PAYLOAD_END:
+                    if len(payload) == 4:
+                        reading = struct.unpack('<i',payload)
+                        samples.append(reading)
+                        if len(samples) >= freq_factor:
+                            sample_mean = np.mean(samples)
+                            samples = list()
+                            if not first_sample:
+                                file.write(',{}'.format(sample_mean))
+                            else:
+                                first_sample = False
+                                file.write('{}'.format(sample_mean))
+                    elif len(payload) > 5:
+                        print('payload too long!!!')
+                elif byte == ESC_FLAG:
+                    esc_flag = True
+                else:
+                    payload.append(byte)
+
+
+
+
+
+def collector(stop):
+    cmd = b'\x02\x06\x03'
+    api.rtt_write(0, cmd)
+
+    EXT = '\x03'
+    ESC = '\x31'
+
+    # timestamp = 0
+    while True:
+        read_data = api.rtt_read(0, 1000, None)
+
+        if len(read_data) == 0:
+            continue
+
+        d.append(read_data) 
+
+        if stop():
+            print('stopping collector')
+            cmd = b'\x02\x07\x03'
+            api.rtt_write(0, cmd)
+            break
+
+                  
+def save_data(api, csvfile, freq_factor): 
+    stop_collecting = False
+    collector_th = threading.Thread(target = collector, args =(api, lambda : stop_collecting,)) 
+    collector_th.start() 
+
+    stop_parsing = False
+    parser_th = threading.Thread(target = parser, args =(lambda : stop_parsing, freq_factor, csvfile,)) 
+    parser_th.start() 
+
+    if keyboard.is_pressed('q'):
+        print('stopping all')
+        stop_collecting = True
+        stop_parsing = True
+        collector_th.join()
+        parser_th.join()
+        print('finished collecting and parsing')
+
+if __name__ == "__main__":    
+    parser = argparse.ArgumentParser(description='get and analyze specific 362 data')
+
+    parser.add_argument('--sampleFreqFactor', help='set sampling factor from 7692Hz. e.g. if set to 2 the sampling freq will be 3846Hz', default='1')
+    parser.add_argument('--outFile', help='set name of output file', default='out.csv')
 
     snr = None
     # Detect the device family of your device. Initialize an API object with UNKNOWN family and read the device's family. This step is performed so this example can be run in all devices without customer input.
@@ -35,7 +122,7 @@ if __name__ == "__main__":
             api.connect_to_emu_without_snr()
         device_family = api.read_device_family()
 
-    print "device family name is ",device_family
+    print('device family name is {}'.format(device_family))
     
     # Initialize an API object with the target family. This will load nrfjprog.dll with the proper target family.
     api = API.API(device_family)
@@ -47,7 +134,7 @@ if __name__ == "__main__":
     else:
         api.connect_to_emu_without_snr()
 
-    print "is JLink DLL open? ",api.is_open()
+    print('is JLink DLL open? {}'.format(api.is_open()))
 
     # time.sleep(5)
 
@@ -64,7 +151,7 @@ if __name__ == "__main__":
     # Wait for RTT to find control block etc.
     time.sleep(0.5)
     while not api.rtt_is_control_block_found():
-        print "Looking for RTT control block..."
+        print('Looking for RTT control block...')
         api.rtt_stop()
         time.sleep(0.5)
         api.rtt_start()
@@ -72,52 +159,8 @@ if __name__ == "__main__":
 
     is_started = api.is_rtt_started()
 
-    print "started state is ",is_started
+    print('started state is {}'.format(is_started))
 
-    time.sleep(2)
-    metadata = api.rtt_read(0, 1000, None)
-    print metadata
-
-    binfile = open('/home/samer/out.bin', 'wb')
-
-    cmd = b'\x02\x06\x03'
-    api.rtt_write(0,cmd)
-
-    EXT = '\x03'
-    ESC = '\x31'
-
-    # timestamp = 0
-    while True:
-        read_data = api.rtt_read(0, 1000, None)
-        
-        if len(read_data) == 0:
-            continue
-
-        binfile.write(read_data)
-
-        if keyboard.is_pressed('q'):
-            print "stopping"
-            cmd = b'\x02\x07\x03'
-            api.rtt_write(0,cmd)
-            break
-
-    binfile.close()
-
-    data_payload = bytearray()
-    total_bytes_read = 0
-    index = 0
-    read_data = binfile.read()
-    split_read_data = read_data.split(EXT)
-    for data_payload in split_read_data:
-        if len(data_payload) == 4:
-            [float_val] = struct.unpack('f', data_payload)
-            csvfile.write(str(float_val)+",")
-            timestamp = timestamp + AVERAGE_TIME_US
-        elif len(data_payload) == 5:
-            continue# timestamp = convertSysTick2MicroSeconds(dataPayload.slice(0, 4))
-        else:
-            print("RX EXT and payload size is ", len(data_payload))
+    save_data(api, args.outFile, args.sampleFreqFactor)
 
 
-    csvfile.close()
-    binfile.close()
