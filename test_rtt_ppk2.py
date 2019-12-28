@@ -126,7 +126,7 @@ def save_data(api, csvfile, freq_factor):
 if __name__ == "__main__":    
     arg_parser = argparse.ArgumentParser(description='get and analyze specific 362 data')
 
-    arg_parser.add_argument('--sampleFreqFactor', help='set sampling factor from 7692Hz. e.g. if set to 2 the sampling freq will be 3846Hz', default=1)
+    arg_parser.add_argument('--sampleFreqFactor', type=int, help='set sampling factor from 7692Hz. e.g. if set to 2 the sampling freq will be 3846Hz', default=1)
     arg_parser.add_argument('--outFile', help='set name of output file', default='out.csv')
     args = arg_parser.parse_args()
     snr = None
@@ -178,7 +178,7 @@ if __name__ == "__main__":
 
     print('started state is {}'.format(is_started))
 
-    save_data(api, 'out.csv', 1)
+    save_data(api, 'out.csv', args.sampleFreqFactor)
 
     api.close()
 
