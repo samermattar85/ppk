@@ -9,7 +9,7 @@ if __name__ == "__main__":
         if len(sys.argv) == 2:
             csvfilename = sys.argv[1]
         else:
-            print ('Usage: python ppk_plot_csv.py <ppk_file>.csv')
+            print('Usage: python ppk_plot_csv.py <ppk_file>.csv')
             exit()
     except:
         raise
@@ -22,7 +22,7 @@ if __name__ == "__main__":
         i = 0
         for row, row_val in enumerate(reader):
             i = i + 1
-            print "line {}, raw_val = {}".format(i, row)
+            print("line {}, raw_val = {}".format(i, row))
             data = np.array(row_val)
             data = data.astype(np.float)
             time = np.linspace(0, (len(data) - 1)/fs, num=len(data))
